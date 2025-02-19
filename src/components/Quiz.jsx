@@ -4,18 +4,18 @@ import { MultipleChoiceQuestion } from "./MultipleChoiceQuestion";
 import { IntegerQuestion } from "./IntegerQuestion";
 import { loadQuiz, resetQuiz } from "../redux/actions/quizActions";
 import { REVIEW_MODE, TEST_MODE } from "../utils/constants";
-import { addData } from "../utils/dbConnection";
+import { addData, getAllData } from "../utils/dbConnection";
+import { Result } from "./Result";
 
 export const Quiz = () => {
   const dispatch = useDispatch();
   const quizData = useSelector((state) => state.quiz.quizData);
-  useEffect(() => {
-    dispatch(loadQuiz());
-  }, []);
   const [mode, setMode] = useState(TEST_MODE);
   const [score, setScore] = useState(0);
-
   const [isSubmited, setIsSubmited] = useState(false);
+  const [isStarted, setIsStarted] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
+  const [isActive, setIsActive] = useState(false);
   const [result, setResult] = useState({
     totalQuestion: 10,
     answered: 0,
@@ -25,7 +25,6 @@ export const Quiz = () => {
   });
 
   const handleSubmit = () => {
-    // dispatch(resetQuiz());
     let tempResult = {
       totalQuestion: quizData.length,
       answered: 0,
@@ -69,11 +68,85 @@ export const Quiz = () => {
     setMode(REVIEW_MODE);
     setIsSubmited(false);
   };
+  const handleStart = () => {
+    setIsStarted(true);
+    startCountdown();
+  };
+  const [oldQuiz, setOldQuiz] = useState([]);
+  useEffect(() => {
+    dispatch(loadQuiz());
+    getAllData().then((res) => {
+      setOldQuiz([...res]);
+    });
+  }, []);
+
+  useEffect(() => {
+    let timer;
+    if (isActive && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+    } else if (timeLeft === 0) {
+      setIsActive(false);
+      handleSubmit(); // Call function when time ends
+    }
+
+    return () => clearInterval(timer);
+  }, [isActive, timeLeft]);
+
+  const startCountdown = () => {
+    setTimeLeft(30 * 60); // Reset to 30 minutes
+    setIsActive(true);
+  };
+
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(
+      2,
+      "0"
+    )}`;
+  };
+
+  if (!isStarted) {
+    return (
+      <div className="container my-4">
+        <div className="card">
+          <div className="card-body text-center">
+            <h2>Quiz Start</h2>
+            <div className="d-flex justify-content-center">
+              <button className="btn btn-primary" onClick={handleStart}>
+                Start
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="row">
+          {oldQuiz.map((value, index) => {
+            return (
+              <div className="card my-2" key={index}>
+                <div className="card-body text-left">
+                  <Result
+                    score={value.score}
+                    totalQuestions={value.quizData.length}
+                    result={value.result}
+                  ></Result>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="container my-4">
       {!isSubmited && (
         <>
-          <h2 className="mb-3">Quiz</h2>
+          <div className="d-flex justify-content-between">
+            <h2 className="mb-3">Quiz</h2>
+            <h2>{formatTime(timeLeft)}</h2>
+          </div>
           {quizData.map((q, index) =>
             q.type === "multiple_choice" ? (
               <MultipleChoiceQuestion
@@ -121,11 +194,11 @@ export const Quiz = () => {
           <div className="card">
             <div className="card-body text-center">
               <h3>Quiz Completed!</h3>
-              <p className="h4 my-4">Your Score: {score}</p>
-              <p>Total Questions: {quizData.length}</p>
-              <p>Attempt Questions: {result.answered}</p>
-              <p>Correct Answers: {result.right}</p>
-              <p>Wrong Answers: {result.wrong}</p>
+              <Result
+                score={score}
+                totalQuestions={quizData.length}
+                result={result}
+              ></Result>
               <div>
                 <button onClick={handleRetake} className="btn btn-primary">
                   Retake

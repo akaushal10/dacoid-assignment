@@ -25,5 +25,6 @@ export const addData = async (data) => {
 
 export const getAllData = async () => {
   const db = await initDB();
-  return db.getAll(STORE_NAME);
+  const temp = db.getAll(STORE_NAME);
+  return temp;
 };
